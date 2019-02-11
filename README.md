@@ -34,7 +34,7 @@ Prediction and decoding (elapsed time: 14.32414 seconds)
 
 ********************************
 Predicted age:  87.75776 years
-Predicted gender:  -1.779992  ---> [0, 1] = [male, female]
+Predicted gender:  -1.779992  ---> [0, 10] = [male, female]
 ********************************
 
 
