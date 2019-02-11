@@ -1,4 +1,4 @@
-# WIP
+# WIP:  Model is still training
 
 # App:  Age/Gender prediction
 
