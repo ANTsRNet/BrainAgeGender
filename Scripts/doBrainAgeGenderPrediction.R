@@ -16,7 +16,7 @@ if( length( args ) != 2 )
 
 # baseDir <- "/Users/ntustison/Pkg/ANTsRNetApps/BrainAgeGender/"
 # inputFileName <- paste0( baseDir, "Data/Example/exampleGrayMatter.nii.gz" )
-# reorientTemplateFileName <- paste0( baseDir, "Data/Template/S_template3_resampled2.nii.gz" )
+# reorientTemplateFileName <- paste0( baseDir, "Data/Template/S_template3_resampled2_GrayMatterProbability.nii.gz" )
 
 regressors <- c( "Age", "Gender/Femaleness" )
 numberOfClassificationLabels <- length( regressors )
@@ -69,9 +69,6 @@ xfrm <- createAntsrTransform( type = "Euler3DTransform",
   center = centerOfMassTemplate,
   translation = centerOfMassImage - centerOfMassTemplate )
 warpedImage <- applyAntsrTransformToImage( xfrm, image, reorientTemplate )
-
-antsImageWrite( warpedImage, "warpedImage.nii.gz" )
-
 endTime <- Sys.time()
 elapsedTime <- endTime - startTime
 cat( "  (elapsed time:", elapsedTime, "seconds)\n" )
