@@ -69,13 +69,15 @@ xfrm <- createAntsrTransform( type = "Euler3DTransform",
   center = centerOfMassTemplate,
   translation = centerOfMassImage - centerOfMassTemplate )
 warpedImage <- applyAntsrTransformToImage( xfrm, image, reorientTemplate )
+
+antsImageWrite( warpedImage, "warpedImage.nii.gz" )
+
 endTime <- Sys.time()
 elapsedTime <- endTime - startTime
 cat( "  (elapsed time:", elapsedTime, "seconds)\n" )
 
 batchX <- array( data = as.array( warpedImage ),
   dim = c( 1, resampledImageSize, channelSize ) )
-batchX <- ( batchX - mean( batchX ) ) / sd( batchX )
 
 cat( "Prediction and decoding" )
 startTime <- Sys.time()
