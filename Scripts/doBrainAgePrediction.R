@@ -33,7 +33,7 @@ brainExtraction <- function( image, verbose = TRUE )
       {
       cat( "Brain extraction:  downloading template.\n" )
       }
-    reorientTemplateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Template/S_template3_resampled.nii.gz?raw=true"
+    reorientTemplateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/S_template3_resampled.nii.gz?raw=true"
     download.file( reorientTemplateUrl, reorientTemplateFileName, quiet = !verbose )
     }
   reorientTemplate <- antsImageRead( reorientTemplateFileName )
@@ -164,7 +164,7 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
       {
       cat( "Data augmentation:  downloading MNI average image.\n" )
       }
-    mniUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Template/mniAverage.nii.gz?raw=true"
+    mniUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/mniAverage.nii.gz?raw=true"
     download.file( mniUrl, mniImageFileName, quiet = !verbose )
     }
   mniAverage <- antsImageRead( mniImageFileName )
@@ -176,7 +176,7 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
       {
       cat( "Data augmentation:  downloading MNI average image.\n" )
       }
-    mniUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Template/mniAverageSubsampled.nii.gz?raw=true"
+    mniUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/mniAverageSubsampled.nii.gz?raw=true"
     download.file( mniUrl, mniImageSubsampledFileName, quiet = !verbose )
     }
   mniAverageSubsampled <- antsImageRead( mniImageFileName )
@@ -231,7 +231,7 @@ if( ! file.exists( templateFileName ) )
     {
     cat( "Brain age:  downloading template.\n" )
     }
-  templateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Template/S_template3_resampled.nii.gz?raw=true"
+  templateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/S_template3_resampled.nii.gz?raw=true"
   download.file( templateUrl, templateFileName, quiet = !verbose )
   }
 originalTemplate <- antsImageRead( templateFileName )
