@@ -304,7 +304,7 @@ for( i in seq_len( length( inputFileNames ) ) )
     {
     cat( "Preprocessing input image ", inputFileNames[i], ".\n", sep = '' )
     }
-  inputImage <- antsPreprocessImage( inputImage )
+  inputImage <- antsPreprocessImage( inputImage, doDenoising = FALSE )
   if( verbose )
     {
     cat( "Brain extraction.\n" )
