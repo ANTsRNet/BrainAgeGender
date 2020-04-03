@@ -156,8 +156,8 @@ antsPreprocessImage <- function( image, mask = NULL, doBiasCorrection = TRUE,
 #  Data augmentation
 #
 
-brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
-  batchSize = 1, affineStd = 0.01, verbose = TRUE )
+brainAgeDataAugmentation <- function( image, imageSubsampled,
+  patchSize = 96, batchSize = 1, affineStd = 0.01, verbose = TRUE )
   {
   # Channel 1: original image/patch
   # Channel 2: difference image/patch with MNI average
@@ -177,7 +177,7 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
     mniUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/mniAverage.nii.gz?raw=true"
     download.file( mniUrl, mniImageFileName, quiet = !verbose )
     }
-  mniAverage <- antsImageRead( mniImageFileName )
+  mniAverage <- antsImageRead( mniImageFileName ) %>% antsCopyImageInfo2( image )
 
   mniImageSubsampledFileName <- paste0( getwd(), "/mniAverageSubsampled.nii.gz" )
   if( ! file.exists( mniImageSubsampledFileName ) )
@@ -189,7 +189,8 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
     mniUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/mniAverageSubsampled.nii.gz?raw=true"
     download.file( mniUrl, mniImageSubsampledFileName, quiet = !verbose )
     }
-  mniAverageSubsampled <- antsImageRead( mniImageFileName )
+  mniAverageSubsampled <- antsImageRead( mniImageSubsampledFileName ) %>%
+    antsCopyImageInfo2( imageSubsampled )
 
   imageDifference <- image - mniAverage
   imageSubsampledDifference <- imageSubsampled - mniAverageSubsampled
@@ -197,7 +198,7 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
   imageArray <- array( data = NA, dim = c( batchSize, imageSubsampledDimensions, numberOfChannels ) )
   patchArray <- array( data = NA, dim = c( batchSize, rep( patchSize, 3 ), numberOfChannels ) )
 
-  randomImages <- randomImageTransformAugementation( imageSubsampled,
+  randomImages <- randomImageTransformAugmentation( imageSubsampled,
     interpolator = c( "linear","linear" ), list( list( image, imageDifference ) ),
     list( imageDifference ), sdAffine = affineStd, n = batchSize, normalization = "01" )
 
@@ -206,16 +207,16 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
     lowerIndices <- rep( NA, 3 )
     for( d in seq_len( 3 ) )
       {
-      lowerIndices[d] <- sample.int( imageOffset:( imageDimensions[d] - patchSize[d] - imageOffset ), 1 )
+      lowerIndices[d] <- sample( imageOffset:( imageDimensions[d] - patchSize - imageOffset ), 1 )
       }
     upperIndices <- lowerIndices + rep( patchSize, 3 ) - 1
     patch <- cropIndices( image, lowerIndices, upperIndices )
-    patchDifference <- cropIndices( imageDifference, lowerIndices)
+    patchDifference <- cropIndices( imageDifference, lowerIndices, upperIndices )
 
-    imageArray[i,,,,1] <- as.array( imageSubsampled )
-    imageArray[i,,,,2] <- randomImages$outputPredictorList[[i]][[2]]
-    patchArray[i,,,,1] <- patch
-    patchArray[i,,,,2] <- patchDifference
+    imageArray[i,,,,1] <- as.array( randomImages$outputPredictorList[[i]][[1]] )
+    imageArray[i,,,,2] <- as.array( randomImages$outputPredictorList[[i]][[2]] )
+    patchArray[i,,,,1] <- as.array( patch )
+    patchArray[i,,,,2] <- as.array( patchDifference )
     }
   return( list( imageArray, patchArray ) )
   }
@@ -231,6 +232,8 @@ targetTemplateDimension <- c( 192L, 224L, 192L )
 
 channelSize <- 2L
 patchSize <- c( rep( 96L, 3L ), channelSize )
+batchSize <- 10L
+affineStd <- 0.1
 
 # Prepare the template
 
@@ -249,6 +252,7 @@ template <- resampleImage( originalTemplate, targetTemplateDimension,
   useVoxels = TRUE, interpType = "linear" )
 templateNormalized <- template %>% iMath( "Normalize" )
 templateProbabilityMask <- brainExtraction( template, verbose = verbose )
+templateBrainNormalized <- templateNormalized * templateProbabilityMask
 templateSubsampled <- resampleImage( template,
   as.integer( floor( targetTemplateDimension / 2 ) ), useVoxels = TRUE,
   interpType = "linear" )
@@ -289,8 +293,10 @@ if( ! file.exists( weightsFileName ) )
   }
 load_model_weights_hdf5( model, weightsFileName )
 
-brainAges <- rep( NA, length( inputFileNames ) )
-brainGenders <- rep( NA, length( inputFileNames ) )
+brainAgesMean <- rep( NA, length( inputFileNames ) )
+brainAgesStd <- rep( NA, length( inputFileNames ) )
+brainGendersMean <- rep( NA, length( inputFileNames ) )
+brainGendersStd <- rep( NA, length( inputFileNames ) )
 for( i in seq_len( length( inputFileNames ) ) )
   {
   inputImage <- antsImageRead( inputFileNames[i] )
@@ -304,15 +310,14 @@ for( i in seq_len( length( inputFileNames ) ) )
     cat( "Brain extraction.\n" )
     }
   inputProbabilityBrainMask <- brainExtraction( inputImage, verbose = TRUE )
-  inputBrainMask <- thresholdImage( inputProbabilityBrainMask, 0.5, Inf )
-  inputBrain <- inputBrainMask * inputImage
+  inputBrain <- inputProbabilityBrainMask * inputImage
   inputBrainNormalized <- inputBrain %>% iMath( "Normalize" )
 
   if( verbose )
     {
     cat( "Registration to template.\n" )
     }
-  templatexInputRegistration <- antsRegistration( fixed = templateNormalized,
+  templatexInputRegistration <- antsRegistration( fixed = templateBrainNormalized,
     moving = inputBrainNormalized, typeofTransform = "Affine", verbose = verbose )
 
   inputImageWarped <- antsApplyTransforms( template, inputImage,
@@ -323,8 +328,8 @@ for( i in seq_len( length( inputFileNames ) ) )
   inputImageWarpedSubsampled <- inputImageWarpedSubsampled %>% iMath( "Normalize" )
 
   augmentation <- brainAgeDataAugmentation( inputImageWarped, inputImageWarpedSubsampled,
-    batchSize = batchSize, affineStd = 0.01, verbose = TRUE )
-  predictions <- predict( model, augmentation )
+    batchSize = 8, affineStd = 0.01, verbose = verbose )
+  predictions <- predict( model, augmentation, verbose = verbose )
 
   # siteDataFrame <- data.frame( matrix( predictions[[1]], ncol = length( siteNames ) ) )
   # colnames( siteDataFrame ) <- siteNames
@@ -333,12 +338,14 @@ for( i in seq_len( length( inputFileNames ) ) )
   #   siteDataFrame[k,] <- siteDataFrame[k,] / sum( siteDataFrame[k,] )
   #   }
 
-  brainAges[i] <- as.numeric( predictions[[2]] )
-  brainGenders[i] <- as.numeric( predictions[[3]] )
+  brainAgesMean[i] <- mean( as.numeric( predictions[[2]] ), na.rm = TRUE )
+  brainAgesStd[i] <- sd( as.numeric( predictions[[2]] ), na.rm = TRUE )
+  brainGendersMean[i] <- mean( as.numeric( predictions[[3]] ), na.rm = TRUE )
+  brainGendersStd[i] <- sd( as.numeric( predictions[[3]] ), na.rm = TRUE )
   }
 
-brainAgeDataFrame <- data.frame( FileName = inputFileNames, Age = brainAges,
-  Gender = brainGenders )
+brainAgeDataFrame <- data.frame( FileName = inputFileNames, Age = brainAgesMean,
+  Gender = brainGendersMean )
 
 if( outputCsvFile != "None" && outputCsvFile != "none" )
   {
