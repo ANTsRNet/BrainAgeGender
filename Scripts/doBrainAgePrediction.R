@@ -33,7 +33,7 @@ brainExtraction <- function( image, verbose = TRUE )
       {
       cat( "Brain extraction:  downloading template.\n" )
       }
-    reorientTemplateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/S_template3_resampled.nii.gz?raw=true"
+    reorientTemplateUrl <- "https://github.com/ANTsXNet/BrainExtraction/blob/master/Data/Template/S_template3_resampled.nii.gz?raw=true"
     download.file( reorientTemplateUrl, reorientTemplateFileName, quiet = !verbose )
     }
   reorientTemplate <- antsImageRead( reorientTemplateFileName )
@@ -157,7 +157,7 @@ antsPreprocessImage <- function( image, mask = NULL, doBiasCorrection = TRUE,
 #
 
 brainAgeDataAugmentation <- function( image, imageSubsampled,
-  patchSize = 96, batchSize = 1, affineStd = 0.01, verbose = TRUE )
+  patchSize = 96L, batchSize = 1L, affineStd = 0.01, verbose = TRUE )
   {
   # Channel 1: original image/patch
   # Channel 2: difference image/patch with MNI average
@@ -199,8 +199,8 @@ brainAgeDataAugmentation <- function( image, imageSubsampled,
   patchArray <- array( data = NA, dim = c( batchSize, rep( patchSize, 3 ), numberOfChannels ) )
 
   randomImages <- randomImageTransformAugmentation( imageSubsampled,
-    interpolator = c( "linear","linear" ), list( list( image, imageDifference ) ),
-    list( imageDifference ), sdAffine = affineStd, n = batchSize, normalization = "01" )
+    interpolator = c( "linear","linear" ), list( list( imageSubsampled, imageSubsampledDifference ) ),
+    list( imageSubsampledDifference ), sdAffine = affineStd, n = batchSize )
 
   for( i in seq_len( batchSize ) )
     {
@@ -213,7 +213,7 @@ brainAgeDataAugmentation <- function( image, imageSubsampled,
     patch <- cropIndices( image, lowerIndices, upperIndices )
     patchDifference <- cropIndices( imageDifference, lowerIndices, upperIndices )
 
-    imageArray[i,,,,1] <- as.array( randomImages$outputPredictorList[[i]][[1]] )
+    imageArray[i,,,,1] <- as.array( randomImages$outputPredictorList[[i]][[1]] %>% iMath( "Normalize" ) )
     imageArray[i,,,,2] <- as.array( randomImages$outputPredictorList[[i]][[2]] )
     patchArray[i,,,,1] <- as.array( patch )
     patchArray[i,,,,2] <- as.array( patchDifference )
@@ -232,7 +232,7 @@ targetTemplateDimension <- c( 192L, 224L, 192L )
 
 channelSize <- 2L
 patchSize <- c( rep( 96L, 3L ), channelSize )
-batchSize <- 10L
+numberOfSamplesPerSubject <- 10L
 affineStd <- 0.1
 
 # Prepare the template
@@ -250,9 +250,8 @@ if( ! file.exists( templateFileName ) )
 originalTemplate <- antsImageRead( templateFileName )
 template <- resampleImage( originalTemplate, targetTemplateDimension,
   useVoxels = TRUE, interpType = "linear" )
-templateNormalized <- template %>% iMath( "Normalize" )
 templateProbabilityMask <- brainExtraction( template, verbose = verbose )
-templateBrainNormalized <- templateNormalized * templateProbabilityMask
+templateBrainNormalized <- ( template * templateProbabilityMask ) %>% iMath( "Normalize" )
 templateSubsampled <- resampleImage( template,
   as.integer( floor( targetTemplateDimension / 2 ) ), useVoxels = TRUE,
   interpType = "linear" )
@@ -328,7 +327,7 @@ for( i in seq_len( length( inputFileNames ) ) )
   inputImageWarpedSubsampled <- inputImageWarpedSubsampled %>% iMath( "Normalize" )
 
   augmentation <- brainAgeDataAugmentation( inputImageWarped, inputImageWarpedSubsampled,
-    batchSize = 8, affineStd = 0.01, verbose = verbose )
+    batchSize = numberOfSamplesPerSubject, affineStd = affineStd, verbose = verbose )
   predictions <- predict( model, augmentation, verbose = verbose )
 
   # siteDataFrame <- data.frame( matrix( predictions[[1]], ncol = length( siteNames ) ) )
