@@ -4,13 +4,13 @@ library( keras )
 
 args <- commandArgs( trailingOnly = TRUE )
 
-if( length( args ) == 1 )
+if( length( args ) == 0 )
   {
   helpMessage <- paste0( "Usage:  Rscript doBrainAgePrediction.R outputCsvFile inputT1_1 inputT1_2 inputT1_3 ...\n" )
   stop( helpMessage )
   } else {
   outputCsvFile <- args[1]
-  inputFileName <- args[2:length( args )]
+  inputFileNames <- args[2:length( args )]
   }
 
 #################
@@ -109,7 +109,12 @@ antsPreprocessImage <- function( image, mask = NULL, doBiasCorrection = TRUE,
       {
       cat( "Preprocessing:  bias correction.\n" )
       }
-    preprocessedImage <- n4BiasFieldCorrection( image, mask, shrinkFactor = 4, verbose = verbose )
+    if( is.null( mask ) )
+      {
+      preprocessedImage <- n4BiasFieldCorrection( image, shrinkFactor = 4, verbose = verbose )
+      } else {
+      preprocessedImage <- n4BiasFieldCorrection( image, mask, shrinkFactor = 4, verbose = verbose )
+      }
     }
 
   # Do denoising
@@ -119,7 +124,12 @@ antsPreprocessImage <- function( image, mask = NULL, doBiasCorrection = TRUE,
       {
       cat( "Preprocessing:  denoising.\n" )
       }
-    preprocessedImage <- denoiseImage( preprocessedImage, mask, shrinkFactor = 1, verbose = verbose )
+    if( is.null( mask ) )
+      {
+      preprocessedImage <- denoiseImage( preprocessedImage, shrinkFactor = 1, verbose = verbose )
+      } else {
+      preprocessedImage <- denoiseImage( preprocessedImage, mask, shrinkFactor = 1, verbose = verbose )
+      }
     }
 
   # Do image matching
@@ -196,7 +206,7 @@ brainAgeDataAugmentation <- function( image, imageSubsampled, patchSize = 96,
     lowerIndices <- rep( NA, 3 )
     for( d in seq_len( 3 ) )
       {
-      lowerIndices[d] <- sample.int( imageOffset:( imageDimensions[d] - patchSize - imageOffset ), 1 )
+      lowerIndices[d] <- sample.int( imageOffset:( imageDimensions[d] - patchSize[d] - imageOffset ), 1 )
       }
     upperIndices <- lowerIndices + rep( patchSize, 3 ) - 1
     patch <- cropIndices( image, lowerIndices, upperIndices )
@@ -231,7 +241,7 @@ if( ! file.exists( templateFileName ) )
     {
     cat( "Brain age:  downloading template.\n" )
     }
-  templateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/S_template3_resampled.nii.gz?raw=true"
+  templateUrl <- "https://github.com/ANTsXNet/BrainAgeGender/blob/master/Data/Templates/template_brainAge.nii.gz?raw=true"
   download.file( templateUrl, templateFileName, quiet = !verbose )
   }
 originalTemplate <- antsImageRead( templateFileName )
@@ -264,9 +274,9 @@ ageLayer <- layer_dense( get_layer( resnetModel, penultimateLayerName )$output,
 genderLayer <- layer_dense( get_layer( resnetModel, penultimateLayerName )$output,
   units = 1L, activation = "sigmoid" )
 
-inputPatch <- layer_input( patchShape )
-model <- keras_model( inputs = list( resnetModel$input, inputPatch ) ),
-  outputs = list( siteLayer, ageLayer, genderLayer )
+inputPatch <- layer_input( patchSize )
+model <- keras_model( inputs = list( resnetModel$input, inputPatch ),
+  outputs = list( siteLayer, ageLayer, genderLayer ) )
 
 weightsFileName <- paste0( getwd(), "/resNet4LayerLR64Card64b.h5" )
 if( ! file.exists( weightsFileName ) )
@@ -286,7 +296,7 @@ for( i in seq_len( length( inputFileNames ) ) )
   inputImage <- antsImageRead( inputFileNames[i] )
   if( verbose )
     {
-    cat( "Preprocessing input image ", inputFileNames[i], ".\n" )
+    cat( "Preprocessing input image ", inputFileNames[i], ".\n", sep = '' )
     }
   inputImage <- antsPreprocessImage( inputImage )
   if( verbose )
